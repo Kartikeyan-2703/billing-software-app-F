@@ -114,7 +114,7 @@ export function BillDialog({ order, onClose }: { order: Order; onClose: () => vo
             <Text style={styles.rName}>{settings.restaurantName}</Text>
             <Text style={styles.rAddress}>{settings.address}</Text>
             <Text style={styles.rContact}>
-              {settings.phone} · GSTIN {settings.gstNumber}
+              {settings.phone}{settings.gstEnabled ? ` · GSTIN ${settings.gstNumber}` : ''}
             </Text>
           </View>
 

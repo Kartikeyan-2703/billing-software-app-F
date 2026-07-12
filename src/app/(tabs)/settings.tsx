@@ -1,29 +1,83 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Switch, SafeAreaView, Platform, KeyboardAvoidingView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Switch, SafeAreaView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import { usePos } from '../../lib/pos-store';
 import { PasswordGate } from '../../components/PasswordGate';
+import { CheckCircle2, AlertCircle, LogOut } from 'lucide-react-native';
+import { clearAuthToken } from '../../lib/api';
 
 export default function SettingsScreen() {
+  const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
+
+  useEffect(() => {
+    if (statusMsg.text) {
+      const timer = setTimeout(() => {
+        setStatusMsg({ type: '', text: '' });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusMsg.text]);
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <Text style={styles.headerSubtitle}>Restaurant & billing config</Text>
-      </View>
-      <PasswordGate title="Settings Locked">
-        <SettingsEditor />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <PasswordGate title="Settings Locked" gateType="settings">
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={styles.headerSubtitle}>Restaurant & billing config</Text>
+        </View>
+
+        <SettingsEditor setStatusMsg={setStatusMsg} />
+
+        {statusMsg.text ? (
+          <View style={styles.toastContainer} pointerEvents="none">
+            <View style={[styles.toast, statusMsg.type === 'error' ? styles.toastError : styles.toastSuccess]}>
+              {statusMsg.type === 'error' ? (
+                <AlertCircle size={20} color="#ef4444" />
+              ) : (
+                <CheckCircle2 size={20} color="#0fa05c" />
+              )}
+              <Text style={[styles.toastText, statusMsg.type === 'error' ? styles.toastTextError : styles.toastTextSuccess]}>
+                {statusMsg.text}
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </PasswordGate>
     </SafeAreaView>
   );
 }
 
-function SettingsEditor() {
-  const { settings, updateSettings } = usePos();
+function SettingsEditor({ setStatusMsg }: { setStatusMsg: any }) {
+  const router = useRouter();
+  const { settings, updateSettings, updatePins } = usePos();
   const [s, setS] = useState(settings);
+  const [menuPin, setMenuPin] = useState('');
+  const [settingsPin, setSettingsPin] = useState('');
 
-  function save() {
-    updateSettings(s);
-    alert('Settings saved');
+  async function save() {
+    setStatusMsg({ type: '', text: '' });
+    const err = await updateSettings(s);
+    if (err) {
+      setStatusMsg({ type: 'error', text: err });
+    } else {
+      setStatusMsg({ type: 'success', text: 'Settings saved successfully.' });
+    }
+  }
+
+  async function savePins() {
+    setStatusMsg({ type: '', text: '' });
+    if (menuPin.length !== 3 || settingsPin.length !== 3) {
+      setStatusMsg({ type: 'error', text: 'Both PINs must be exactly 3 digits.' });
+      return;
+    }
+    const err = await updatePins(menuPin, settingsPin);
+    if (err) {
+      setStatusMsg({ type: 'error', text: err });
+    } else {
+      setStatusMsg({ type: 'success', text: 'Security PINs updated successfully!' });
+      setMenuPin('');
+      setSettingsPin('');
+    }
   }
 
   return (
@@ -137,6 +191,52 @@ function SettingsEditor() {
         <TouchableOpacity style={styles.saveBtn} onPress={save}>
           <Text style={styles.saveBtnText}>Save Settings</Text>
         </TouchableOpacity>
+
+        <View style={[styles.panel, { marginTop: 20 }]}>
+          <Text style={styles.panelTitle}>SECURITY (PIN CODES)</Text>
+          <View style={styles.rowGrid}>
+            <Field label="Menu PIN" style={{ flex: 1 }}>
+              <TextInput
+                style={styles.input}
+                value={menuPin}
+                onChangeText={(v) => setMenuPin(v.replace(/\D/g, ''))}
+                keyboardType="numeric"
+                maxLength={3}
+                placeholder="***"
+                secureTextEntry
+              />
+            </Field>
+            <View style={{ width: 12 }} />
+            <Field label="Settings PIN" style={{ flex: 1 }}>
+              <TextInput
+                style={styles.input}
+                value={settingsPin}
+                onChangeText={(v) => setSettingsPin(v.replace(/\D/g, ''))}
+                keyboardType="numeric"
+                maxLength={3}
+                placeholder="***"
+                secureTextEntry
+              />
+            </Field>
+          </View>
+          <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, backgroundColor: '#3f3f46', shadowColor: '#3f3f46' }]} onPress={savePins}>
+            <Text style={styles.saveBtnText}>Update PINs</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity 
+          style={styles.signOutBtn} 
+          onPress={async () => {
+            await clearAuthToken();
+            router.replace('/login');
+          }}>
+          <LogOut size={20} color="#ef4444" />
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+
+        <View style={styles.poweredBy}>
+          <Text style={styles.poweredByText}>POWERED BY NEURALWEB LABS</Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -213,12 +313,51 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    height: 44,
+    height: 48,
     backgroundColor: '#f4f4f5',
     borderRadius: 12,
     paddingHorizontal: 16,
-    fontSize: 14,
+    fontSize: 15,
     color: '#09090b',
+  },
+  toastContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    gap: 10,
+  },
+  toastSuccess: {
+    borderColor: '#e1f7e7',
+  },
+  toastError: {
+    borderColor: '#fef2f2',
+  },
+  toastText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  toastTextSuccess: {
+    color: '#0fa05c',
+  },
+  toastTextError: {
+    color: '#ef4444',
   },
   rowGrid: {
     flexDirection: 'row',
@@ -288,4 +427,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  signOutBtn: {
+    flexDirection: 'row',
+    height: 56,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  signOutText: {
+    color: '#ef4444',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  poweredBy: {
+    marginTop: 32,
+    alignItems: 'center',
+  },
+  poweredByText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#d4d4d8',
+    letterSpacing: 1,
+  }
 });

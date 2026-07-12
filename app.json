@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "veda-pos-app",
-    "slug": "veda-pos-app",
+    "name": "NeuralWeb Labs POS Suite",
+    "slug": "nwl-pos-suite",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -21,7 +21,10 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "NeuralWeb Labs POS Suite",
+      "shortName": "NWL POS",
+      "description": "Fast, mobile-first billing & POS for restaurants."
     },
     "plugins": [
       "expo-router",
@@ -32,8 +35,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ],
-      "expo-sharing"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

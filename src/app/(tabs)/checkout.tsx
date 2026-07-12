@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, Switch, Alert } from 'react-native';
 import { ArrowLeft, Check, Store, ShoppingBag, Snowflake, Banknote, Smartphone } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePos, inr, type OrderType, type PaymentMode, type AcMode, type Order } from '../../lib/pos-store';
@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { cart, menu, settings, addOrder, clearCart } = usePos();
+  const { cart, menu, settings, submitOrder, clearCart } = usePos();
 
   const lines = useMemo(
     () =>
@@ -26,6 +26,7 @@ export default function CheckoutScreen() {
   const [acMode, setAcMode] = useState<AcMode>('Non-AC');
   const [payment, setPayment] = useState<PaymentMode | null>(null);
   const [bill, setBill] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
   const gstAmount = settings.gstEnabled ? Math.round(subtotal * (settings.gstPct / 100)) : 0;
@@ -46,25 +47,22 @@ export default function CheckoutScreen() {
     );
   }
 
-  function generateBill() {
+  async function generateBill() {
     if (!payment) return;
-    const now = new Date();
-    const order: Order = {
-      billNo: `INV${String(Date.now()).slice(-8)}`,
-      date: now.toISOString(),
-      items: lines,
-      subtotal,
-      gstPct: settings.gstEnabled ? settings.gstPct : 0,
-      gstAmount,
-      acCharge,
-      total,
-      paymentMode: payment,
-      orderType,
-      acMode: orderType === 'Dine-In' && settings.acEnabled ? acMode : undefined,
-    };
-    addOrder(order);
-    setBill(order);
-    clearCart();
+    setLoading(true);
+    try {
+      const isAC = orderType === 'Dine-In' && settings.acEnabled ? acMode === 'AC' : false;
+      const orderItems = lines.map((l) => ({ code: l.code, quantity: l.qty }));
+      
+      const order = await submitOrder(payment, orderType, isAC, orderItems);
+      setBill(order);
+      clearCart();
+      Alert.alert("Success", "Bill generated successfully!");
+    } catch (err: any) {
+      Alert.alert("Error", "Failed to submit order: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -156,12 +154,12 @@ export default function CheckoutScreen() {
 
       <View style={[styles.bottomBar, { bottom: 0 }]}>
         <TouchableOpacity
-          disabled={!payment}
+          disabled={!payment || loading}
           onPress={generateBill}
-          style={[styles.generateBtn, !payment && styles.generateBtnDisabled]}>
-          <Check size={20} color={payment ? '#fff' : '#a1a1aa'} />
-          <Text style={[styles.generateBtnText, !payment && styles.generateBtnTextDisabled]}>
-            {payment ? `Generate Bill · ${inr(total)}` : 'Select payment mode'}
+          style={[styles.generateBtn, (!payment || loading) && styles.generateBtnDisabled]}>
+          <Check size={20} color={payment && !loading ? '#fff' : '#a1a1aa'} />
+          <Text style={[styles.generateBtnText, (!payment || loading) && styles.generateBtnTextDisabled]}>
+            {loading ? 'Generating...' : payment ? `Generate Bill · ${inr(total)}` : 'Select payment mode'}
           </Text>
         </TouchableOpacity>
       </View>

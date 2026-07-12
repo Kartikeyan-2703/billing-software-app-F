@@ -1,28 +1,41 @@
 import React, { useState, type ReactNode } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ActivityIndicator } from 'react-native';
 import { Lock } from 'lucide-react-native';
+import { apiFetch } from '../lib/api';
 
 export function PasswordGate({
   title,
+  gateType,
   children,
 }: {
   title: string;
+  gateType: "menu" | "settings";
   children: ReactNode;
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [value, setValue] = useState('');
   const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   if (unlocked) return <>{children}</>;
 
-  const handleSubmit = () => {
-    if (value === '000') {
+  const handleSubmit = async () => {
+    if (!value) return;
+    Keyboard.dismiss();
+    setLoading(true);
+    
+    try {
+      await apiFetch("/auth/verify-gate", {
+        method: "POST",
+        body: JSON.stringify({ type: gateType, password: value })
+      });
       setUnlocked(true);
-    } else {
+    } catch (err) {
       setError(true);
       setValue('');
+    } finally {
+      setLoading(false);
     }
-    Keyboard.dismiss();
   };
 
   return (
@@ -42,9 +55,10 @@ export function PasswordGate({
               autoFocus
               secureTextEntry
               keyboardType="numeric"
+              maxLength={3}
               value={value}
               onChangeText={(text) => {
-                setValue(text);
+                setValue(text.replace(/\D/g, ""));
                 setError(false);
               }}
               onSubmitEditing={handleSubmit}
@@ -52,9 +66,13 @@ export function PasswordGate({
               placeholderTextColor="#a1a1aa"
               style={[styles.input, error && styles.inputError]}
             />
-            {error && <Text style={styles.errorText}>Incorrect PIN. Try 000.</Text>}
-            <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-              <Text style={styles.buttonText}>Unlock</Text>
+            {error && <Text style={styles.errorText}>Incorrect PIN.</Text>}
+            <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Unlock</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

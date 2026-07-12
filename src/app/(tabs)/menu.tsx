@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, SafeAreaView, Platform, Modal, Alert, KeyboardAvoidingView } from 'react-native';
-import { Search, Plus, Pencil, Trash2, X } from 'lucide-react-native';
+import { Search, Plus, Pencil, Trash2, X, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import { usePos, inr, type MenuItem } from '../../lib/pos-store';
 import { PasswordGate } from '../../components/PasswordGate';
 import { CATEGORIES } from '../../lib/menu-data';
@@ -14,7 +14,7 @@ export default function MenuScreen() {
           <Text style={styles.headerTitle}>Edit Menu</Text>
           <Text style={styles.headerSubtitle}>Manager access</Text>
         </View>
-        <PasswordGate title="Menu Editor Locked">
+        <PasswordGate title="Menu Locked" gateType="menu">
           <MenuEditor />
         </PasswordGate>
       </View>
@@ -27,6 +27,16 @@ function MenuEditor() {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [creating, setCreating] = useState(false);
+  const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
+
+  useEffect(() => {
+    if (statusMsg.text) {
+      const timer = setTimeout(() => {
+        setStatusMsg({ type: '', text: '' });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusMsg.text]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -78,7 +88,15 @@ function MenuEditor() {
                 onPress={() => {
                   Alert.alert('Delete Item', `Delete ${m.name}?`, [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => deleteMenu(m.code) }
+                    { text: 'Delete', style: 'destructive', onPress: async () => {
+                        try {
+                          await deleteMenu(m.code);
+                          setStatusMsg({ type: 'success', text: `${m.name} was deleted.` });
+                        } catch (err: any) {
+                          setStatusMsg({ type: 'error', text: err.message || "Failed to delete item." });
+                        }
+                      } 
+                    }
                   ]);
                 }}>
                 <Trash2 size={16} color="#ef4444" />
@@ -112,21 +130,38 @@ function MenuEditor() {
           style={styles.modalOverlay}>
           <ItemForm
             initial={editing || undefined}
+            existingCodes={menu.map(m => m.code)}
             onClose={() => {
               setEditing(null);
               setCreating(false);
             }}
-            onSubmit={(item) => {
-              const err = editing ? updateMenu(editing.code, item) : addMenu(item);
+            onSubmit={async (item) => {
+              const err = editing ? await updateMenu(editing.code, item) : await addMenu(item);
               if (err) {
-                Alert.alert('Error', err);
+                setStatusMsg({ type: 'error', text: err });
                 return false;
               }
+              setStatusMsg({ type: 'success', text: `Item ${editing ? 'updated' : 'added'} successfully.` });
               return true;
             }}
           />
         </KeyboardAvoidingView>
       </Modal>
+
+      {statusMsg.text ? (
+        <View style={styles.toastContainer} pointerEvents="none">
+          <View style={[styles.toast, statusMsg.type === 'error' ? styles.toastError : styles.toastSuccess]}>
+            {statusMsg.type === 'error' ? (
+              <AlertCircle size={20} color="#ef4444" />
+            ) : (
+              <CheckCircle2 size={20} color="#0fa05c" />
+            )}
+            <Text style={[styles.toastText, statusMsg.type === 'error' ? styles.toastTextError : styles.toastTextSuccess]}>
+              {statusMsg.text}
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -135,16 +170,19 @@ function ItemForm({
   initial,
   onClose,
   onSubmit,
+  existingCodes,
 }: {
   initial?: MenuItem;
   onClose: () => void;
-  onSubmit: (item: MenuItem) => boolean;
+  onSubmit: (item: MenuItem) => Promise<boolean> | boolean;
+  existingCodes: string[];
 }) {
   const [code, setCode] = useState(initial?.code ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [price, setPrice] = useState(initial?.price.toString() ?? '');
   const [category, setCategory] = useState(initial?.category ?? CATEGORIES[0]);
   const [showCat, setShowCat] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   return (
     <View style={styles.modalContent}>
@@ -164,6 +202,7 @@ function ItemForm({
             maxLength={3}
             onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 3))}
             placeholder="e.g. 101"
+            placeholderTextColor="#a1a1aa"
           />
         </Field>
         
@@ -173,6 +212,7 @@ function ItemForm({
             value={name}
             onChangeText={setName}
             placeholder="e.g. Masala Dosa"
+            placeholderTextColor="#a1a1aa"
           />
         </Field>
 
@@ -181,9 +221,10 @@ function ItemForm({
             <TextInput
               style={styles.input}
               value={price}
-              keyboardType="decimal-pad"
-              onChangeText={(v) => setPrice(v.replace(/[^\d.]/g, ''))}
-              placeholder="0.00"
+              keyboardType="number-pad"
+              onChangeText={(v) => setPrice(v.replace(/\D/g, ''))}
+              placeholder="0"
+              placeholderTextColor="#a1a1aa"
             />
           </Field>
 
@@ -206,16 +247,31 @@ function ItemForm({
             ))}
           </View>
         )}
+        
+        {!!errorMsg && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{errorMsg}</Text>
+          </View>
+        )}
       </View>
 
       <TouchableOpacity
         style={styles.submitBtn}
-        onPress={() => {
+        onPress={async () => {
+          setErrorMsg('');
           if (!code || !name || !price) {
-            Alert.alert('Validation', 'Please fill all fields');
+            setErrorMsg('Please fill all fields');
             return;
           }
-          const ok = onSubmit({ code, name: name.trim(), price: Number(price), category });
+          if (!initial && existingCodes.includes(code)) {
+            setErrorMsg(`Item code ${code} already exists.`);
+            return;
+          }
+          if (initial && initial.code !== code && existingCodes.includes(code)) {
+            setErrorMsg(`Item code ${code} already exists.`);
+            return;
+          }
+          const ok = await onSubmit({ code, name: name.trim(), price: Number(price), category });
           if (ok) onClose();
         }}>
         <Text style={styles.submitBtnText}>{initial ? 'Save Changes' : 'Add Item'}</Text>
@@ -496,5 +552,57 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  errorBox: {
+    backgroundColor: '#fef2f2',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  toastContainer: {
+    position: 'absolute',
+    bottom: 96,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    gap: 10,
+  },
+  toastSuccess: {
+    borderColor: '#e1f7e7',
+  },
+  toastError: {
+    borderColor: '#fef2f2',
+  },
+  toastText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  toastTextSuccess: {
+    color: '#0fa05c',
+  },
+  toastTextError: {
+    color: '#ef4444',
   },
 });

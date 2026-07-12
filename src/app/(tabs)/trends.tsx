@@ -499,9 +499,10 @@ const styles = StyleSheet.create({
     color: '#a1a1aa',
   },
   miniPieContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     gap: 12,
+    paddingVertical: 8,
   },
   miniPieWrapper: {
     width: 80,
@@ -511,7 +512,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   miniPieLegend: {
-    flex: 1,
+    width: '100%',
+    alignItems: 'center',
     gap: 4,
   },
   legendItem: {

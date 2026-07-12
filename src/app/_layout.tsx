@@ -3,18 +3,37 @@ import { View, StyleSheet, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { PosProvider, usePos } from '../lib/pos-store';
+import { useRouter, useSegments } from 'expo-router';
+import { usePos } from '../lib/pos-store';
+import { getAuthToken } from '../lib/api';
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { isReady } = usePos();
+  const { isReady, loadData } = usePos();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   useEffect(() => {
     if (isReady) {
       SplashScreen.hideAsync();
+      
+      // Auth Routing Guard
+      getAuthToken().then(token => {
+        const inAuthGroup = segments[0] === 'login';
+        
+        if (!token && !inAuthGroup) {
+          router.replace('/login');
+        } else if (token && inAuthGroup) {
+          router.replace('/');
+        }
+      });
     }
-  }, [isReady]);
+  }, [isReady, segments]);
 
   if (!isReady) return null;
 
@@ -33,11 +52,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  return (
-    <PosProvider>
-      <RootLayoutNav />
-    </PosProvider>
-  );
+  return <RootLayoutNav />;
 }
 
 const styles = StyleSheet.create({
