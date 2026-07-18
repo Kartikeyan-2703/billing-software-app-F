@@ -1,31 +1,27 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Platform, ActivityIndicator } from 'react-native';
 import { Search, Receipt } from 'lucide-react-native';
 import { usePos, inr, type Order } from '../../lib/pos-store';
 import { BillDialog } from '../../components/BillDialog';
 
 export default function OrdersScreen() {
-  const { orders } = usePos();
+  const { orders, trends, searchOrders, fetchNextOrdersPage, isFetchingOrders, hasMoreOrders } = usePos();
   const [query, setQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return orders;
-    return orders.filter(
-      (o) =>
-        o.billNo.toLowerCase().includes(q) ||
-        o.items.some((i) => i.name.toLowerCase().includes(q) || i.code.includes(q)) ||
-        new Date(o.date).toLocaleDateString('en-IN').includes(q)
-    );
-  }, [orders, query]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchOrders(query);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Past Orders</Text>
-        <Text style={styles.headerSubtitle}>{orders.length} total bills</Text>
+        <Text style={styles.headerSubtitle}>{trends?.totalOrders || orders.length} total bills</Text>
       </View>
 
       <View style={styles.searchContainer}>
@@ -42,16 +38,19 @@ export default function OrdersScreen() {
       </View>
 
       <FlatList
-        data={filtered}
+        data={orders}
         keyExtractor={(item) => item.billNo}
         contentContainerStyle={styles.listContent}
+        onEndReached={fetchNextOrdersPage}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={isFetchingOrders ? <ActivityIndicator size="small" color="#0fa05c" style={{ margin: 20 }} /> : null}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconContainer}>
               <Receipt size={24} color="#0fa05c" />
             </View>
             <Text style={styles.emptyText}>
-              {orders.length === 0 ? 'No orders yet. Generate your first bill.' : 'No matches.'}
+              {query ? 'No matches.' : 'No orders yet. Generate your first bill.'}
             </Text>
           </View>
         )}

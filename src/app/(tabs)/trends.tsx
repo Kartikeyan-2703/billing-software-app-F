@@ -8,101 +8,39 @@ import { PasswordGate } from '../../components/PasswordGate';
 const screenWidth = Dimensions.get('window').width;
 
 export default function TrendsScreen() {
-  const { orders } = usePos();
+  const { trends } = usePos();
 
   const stats = useMemo(() => {
-    const now = new Date();
-    const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const weekAgo = now.getTime() - 7 * 24 * 3600 * 1000;
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-
-    let today = 0, week = 0, month = 0;
-    const itemCount: Record<string, { name: string; qty: number; revenue: number }> = {};
-    const payment: Record<string, number> = {};
-    const orderType: Record<string, number> = {};
-
-    for (const o of orders) {
-      const t = new Date(o.date).getTime();
-      if (t >= startDay) today += o.total;
-      if (t >= weekAgo) week += o.total;
-      if (t >= monthStart) month += o.total;
-      for (const l of o.items) {
-        const k = l.code;
-        itemCount[k] ||= { name: l.name, qty: 0, revenue: 0 };
-        itemCount[k].qty += l.qty;
-        itemCount[k].revenue += l.qty * l.price;
-      }
-      const pMode = o.paymentMode?.toUpperCase() === 'UPI' ? 'UPI' : 'Cash';
-      payment[pMode] = (payment[pMode] || 0) + 1;
-      orderType[o.orderType] = (orderType[o.orderType] || 0) + 1;
-    }
-
-    const items = Object.values(itemCount).sort((a, b) => b.qty - a.qty);
-    const best = items[0];
-    const worst = items[items.length - 1];
-    const top5 = items.slice(0, 5);
-    const bottom = items.slice(-5).reverse();
-    const totalOrders = orders.length;
-    const avg = totalOrders ? Math.round(orders.reduce((s, o) => s + o.total, 0) / totalOrders) : 0;
-    const paymentTop = Object.entries(payment).sort((a, b) => b[1] - a[1])[0];
-
-    const dailyLabels: string[] = [];
-    const dailyData: number[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const start = d.getTime();
-      const end = start + 24 * 3600 * 1000;
-      const rev = orders
-        .filter((o) => {
-          const t = new Date(o.date).getTime();
-          return t >= start && t < end;
-        })
-        .reduce((s, o) => s + o.total, 0);
-      dailyLabels.push(d.toLocaleDateString('en-IN', { weekday: 'short' }));
-      dailyData.push(rev);
-    }
-
+    if (!trends) return null;
+    
     return {
-      today,
-      week,
-      month,
-      totalOrders,
-      avg,
-      best,
-      worst,
-      top5,
-      bottom,
-      paymentTop,
-      paymentData: Object.entries(payment)
-        .map(([name, value], i) => {
-          let sliceColor = PIE_COLORS[i % PIE_COLORS.length];
-          if (name.toLowerCase() === 'cash') sliceColor = '#10b981'; // Green
-          if (name.toLowerCase() === 'upi') sliceColor = '#06b6d4'; // Blue
-          return {
-            name,
-            population: value,
-            color: sliceColor,
-            legendFontColor: '#71717a',
-            legendFontSize: 12,
-          };
-        }),
-      orderTypeData: Object.entries(orderType)
-        .map(([name, value], i) => {
-          let sliceColor = PIE_COLORS[i % PIE_COLORS.length];
-          if (name.toLowerCase() === 'take away') sliceColor = '#10b981'; // Green
-          if (name.toLowerCase() === 'dine-in') sliceColor = '#06b6d4'; // Blue
-          return {
-            name,
-            population: value,
-            color: sliceColor,
-            legendFontColor: '#71717a',
-            legendFontSize: 12,
-          };
-        }),
-      dailyLabels,
-      dailyData,
+      ...trends,
+      paymentData: trends.paymentData.map((p: any, i: number) => {
+        let sliceColor = PIE_COLORS[i % PIE_COLORS.length];
+        if (p.name.toLowerCase() === 'cash') sliceColor = '#10b981'; // Green
+        if (p.name.toLowerCase() === 'upi') sliceColor = '#06b6d4'; // Blue
+        return {
+          name: p.name,
+          population: p.value,
+          color: sliceColor,
+          legendFontColor: '#71717a',
+          legendFontSize: 12,
+        };
+      }),
+      orderTypeData: trends.orderTypeData.map((o: any, i: number) => {
+        let sliceColor = PIE_COLORS[i % PIE_COLORS.length];
+        if (o.name.toLowerCase() === 'take away') sliceColor = '#10b981'; // Green
+        if (o.name.toLowerCase() === 'dine-in') sliceColor = '#06b6d4'; // Blue
+        return {
+          name: o.name,
+          population: o.value,
+          color: sliceColor,
+          legendFontColor: '#71717a',
+          legendFontSize: 12,
+        };
+      }),
     };
-  }, [orders]);
+  }, [trends]);
 
   const chartConfig = {
     backgroundGradientFrom: '#ffffff',

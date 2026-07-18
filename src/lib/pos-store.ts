@@ -62,6 +62,11 @@ type PosStore = {
   menu: MenuItem[];
   cart: Cart;
   orders: Order[];
+  trends: any;
+  ordersPage: number;
+  hasMoreOrders: boolean;
+  ordersSearchQuery: string;
+  isFetchingOrders: boolean;
   settings: Settings;
   isReady: boolean;
   
@@ -82,12 +87,19 @@ type PosStore = {
   submitOrder: (paymentMode: string, diningType: string, isAC: boolean, items: {code: string, quantity: number}[]) => Promise<Order>;
   updateSettings: (s: Partial<Settings>) => Promise<string | null>;
   updatePins: (menuPin: string, settingsPin: string, trendsPin: string) => Promise<string | null>;
+  fetchNextOrdersPage: () => Promise<void>;
+  searchOrders: (query: string) => Promise<void>;
 };
 
 export const usePos = create<PosStore>((set, get) => ({
   menu: [],
   cart: {},
   orders: [],
+  trends: null,
+  ordersPage: 1,
+  hasMoreOrders: true,
+  ordersSearchQuery: "",
+  isFetchingOrders: false,
   settings: DEFAULT_SETTINGS,
   isReady: false,
   
@@ -137,41 +149,49 @@ export const usePos = create<PosStore>((set, get) => ({
     }
 
     // Clear previous user's data before fetching new data
-    set({
-      menu: [],
-      orders: [],
-      cart: {},
-      settings: {
-        restaurantName: "My Restaurant",
-        address: "",
-        phone: "",
-        gstNumber: "",
-        footer: "Thank you! Visit again.",
-        gstEnabled: false,
-        gstPct: 0,
-        acEnabled: false,
-        acCharge: 0,
-      },
-    });
+      set({
+        menu: [],
+        orders: [],
+        trends: null,
+        ordersPage: 1,
+        hasMoreOrders: true,
+        ordersSearchQuery: "",
+        cart: {},
+        settings: {
+          restaurantName: "My Restaurant",
+          address: "",
+          phone: "",
+          gstNumber: "",
+          footer: "Thank you! Visit again.",
+          gstEnabled: false,
+          gstPct: 0,
+          acEnabled: false,
+          acCharge: 0,
+        },
+      });
 
-    try {
-      const [menuData, settingsData, ordersData] = await Promise.allSettled([
+      try {
+        const [menuData, settingsData, ordersData, trendsData] = await Promise.allSettled([
         apiFetch("/menu"),
         apiFetch("/settings"),
-        apiFetch("/orders")
+        apiFetch("/orders?page=1&limit=20"),
+        apiFetch("/trends")
       ]);
 
       set((state) => ({
         menu: menuData.status === "fulfilled" ? menuData.value : state.menu,
         settings: settingsData.status === "fulfilled" && settingsData.value ? settingsData.value : state.settings,
-        orders: ordersData.status === "fulfilled" ? ordersData.value : state.orders,
+        orders: ordersData.status === "fulfilled" ? ordersData.value.data : state.orders,
+        hasMoreOrders: ordersData.status === "fulfilled" ? ordersData.value.hasMore : state.hasMoreOrders,
+        trends: trendsData.status === "fulfilled" ? trendsData.value : state.trends,
       }));
       
       // If any request failed due to invalid token, clear it so user is logged out
       if (
         (menuData.status === "rejected" && menuData.reason?.message?.includes("Unauthorized")) ||
         (settingsData.status === "rejected" && settingsData.reason?.message?.includes("Unauthorized")) ||
-        (ordersData.status === "rejected" && ordersData.reason?.message?.includes("Unauthorized"))
+        (ordersData.status === "rejected" && ordersData.reason?.message?.includes("Unauthorized")) ||
+        (trendsData.status === "rejected" && trendsData.reason?.message?.includes("Unauthorized"))
       ) {
         await clearAuthToken();
         router.replace('/login');
@@ -180,6 +200,44 @@ export const usePos = create<PosStore>((set, get) => ({
       console.error("Failed to fetch POS data", err);
     } finally {
       set({ isReady: true });
+    }
+  },
+
+  fetchNextOrdersPage: async () => {
+    const state = get();
+    if (state.isFetchingOrders || !state.hasMoreOrders) return;
+    
+    set({ isFetchingOrders: true });
+    try {
+      const nextPage = state.ordersPage + 1;
+      const q = encodeURIComponent(state.ordersSearchQuery);
+      const res = await apiFetch(`/orders?page=${nextPage}&limit=20&query=${q}`);
+      set({
+        orders: [...state.orders, ...res.data],
+        ordersPage: nextPage,
+        hasMoreOrders: res.hasMore
+      });
+    } catch (err) {
+      console.error("Failed to fetch next orders page", err);
+    } finally {
+      set({ isFetchingOrders: false });
+    }
+  },
+
+  searchOrders: async (query: string) => {
+    set({ ordersSearchQuery: query, isFetchingOrders: true });
+    try {
+      const q = encodeURIComponent(query);
+      const res = await apiFetch(`/orders?page=1&limit=20&query=${q}`);
+      set({
+        orders: res.data,
+        ordersPage: 1,
+        hasMoreOrders: res.hasMore
+      });
+    } catch (err) {
+      console.error("Failed to search orders", err);
+    } finally {
+      set({ isFetchingOrders: false });
     }
   },
 
