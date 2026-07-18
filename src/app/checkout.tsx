@@ -1,9 +1,10 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, Switch, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Switch, Alert } from 'react-native';
 import { ArrowLeft, Check, Store, ShoppingBag, Snowflake, Banknote, Smartphone } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { usePos, inr, type OrderType, type PaymentMode, type AcMode, type Order } from '../../lib/pos-store';
-import { BillDialog } from '../../components/BillDialog';
+import { usePos, inr, type OrderType, type PaymentMode, type AcMode, type Order } from '../lib/pos-store';
+import { BillDialog } from '../components/BillDialog';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CheckoutScreen() {
@@ -29,10 +30,10 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(false);
 
   const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
-  const gstAmount = settings.gstEnabled ? Math.round(subtotal * (settings.gstPct / 100)) : 0;
   const acCharge =
     settings.acEnabled && orderType === 'Dine-In' && acMode === 'AC' ? settings.acCharge : 0;
-  const total = subtotal + gstAmount + acCharge;
+  const gstAmount = settings.gstEnabled ? ((subtotal + acCharge) * (settings.gstPct / 100)) : 0;
+  const total = Math.round(subtotal + gstAmount + acCharge);
 
   const showAc = settings.acEnabled && orderType === 'Dine-In';
 
@@ -57,7 +58,6 @@ export default function CheckoutScreen() {
       const order = await submitOrder(payment, orderType, isAC, orderItems);
       setBill(order);
       clearCart();
-      Alert.alert("Success", "Bill generated successfully!");
     } catch (err: any) {
       Alert.alert("Error", "Failed to submit order: " + err.message);
     } finally {
@@ -171,6 +171,7 @@ export default function CheckoutScreen() {
             setBill(null);
             router.back();
           }}
+          autoPrint
         />
       )}
     </SafeAreaView>

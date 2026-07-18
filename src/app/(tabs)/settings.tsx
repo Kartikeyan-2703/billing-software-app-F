@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Switch, SafeAreaView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Switch, Platform, KeyboardAvoidingView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePos } from '../../lib/pos-store';
 import { PasswordGate } from '../../components/PasswordGate';
@@ -53,6 +54,7 @@ function SettingsEditor({ setStatusMsg }: { setStatusMsg: any }) {
   const [s, setS] = useState(settings);
   const [menuPin, setMenuPin] = useState('');
   const [settingsPin, setSettingsPin] = useState('');
+  const [trendsPin, setTrendsPin] = useState('');
 
   async function save() {
     setStatusMsg({ type: '', text: '' });
@@ -66,17 +68,18 @@ function SettingsEditor({ setStatusMsg }: { setStatusMsg: any }) {
 
   async function savePins() {
     setStatusMsg({ type: '', text: '' });
-    if (menuPin.length !== 3 || settingsPin.length !== 3) {
-      setStatusMsg({ type: 'error', text: 'Both PINs must be exactly 3 digits.' });
+    if (menuPin.length !== 3 || settingsPin.length !== 3 || trendsPin.length !== 3) {
+      setStatusMsg({ type: 'error', text: 'All PINs must be exactly 3 digits.' });
       return;
     }
-    const err = await updatePins(menuPin, settingsPin);
+    const err = await updatePins(menuPin, settingsPin, trendsPin);
     if (err) {
       setStatusMsg({ type: 'error', text: err });
     } else {
       setStatusMsg({ type: 'success', text: 'Security PINs updated successfully!' });
       setMenuPin('');
       setSettingsPin('');
+      setTrendsPin('');
     }
   }
 
@@ -212,6 +215,18 @@ function SettingsEditor({ setStatusMsg }: { setStatusMsg: any }) {
                 style={styles.input}
                 value={settingsPin}
                 onChangeText={(v) => setSettingsPin(v.replace(/\D/g, ''))}
+                keyboardType="numeric"
+                maxLength={3}
+                placeholder="***"
+                secureTextEntry
+              />
+            </Field>
+            <View style={{ width: 12 }} />
+            <Field label="Trends PIN" style={{ flex: 1 }}>
+              <TextInput
+                style={styles.input}
+                value={trendsPin}
+                onChangeText={(v) => setTrendsPin(v.replace(/\D/g, ''))}
                 keyboardType="numeric"
                 maxLength={3}
                 placeholder="***"

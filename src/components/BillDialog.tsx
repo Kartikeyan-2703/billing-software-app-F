@@ -1,101 +1,37 @@
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import { X, Printer } from 'lucide-react-native';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Platform, ActivityIndicator } from 'react-native';
+import { X, Printer, Bluetooth, Check } from 'lucide-react-native';
 import { Order, usePos, inr } from '../lib/pos-store';
+import { scanDevices, connectPrinter, printReceipt } from '../lib/printer-utils';
 
-export function BillDialog({ order, onClose }: { order: Order; onClose: () => void }) {
-  const { settings } = usePos();
+export function BillDialog({ order, onClose, autoPrint = false }: { order: Order; onClose: () => void, autoPrint?: boolean }) {
+  const { settings, connectedPrinterAddress } = usePos();
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const print = async () => {
-    const html = `
-      <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-          <style>
-            body { font-family: monospace; padding: 20px; font-size: 14px; max-width: 400px; margin: auto; }
-            h1 { text-align: center; margin: 0; font-size: 20px; }
-            .subtitle { text-align: center; font-size: 12px; margin-bottom: 20px; color: #555; }
-            .info { font-size: 12px; margin-bottom: 10px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            th, td { text-align: left; padding: 4px 0; }
-            .right { text-align: right; }
-            .center { text-align: center; }
-            .border-top { border-top: 1px dashed #000; }
-            .border-bottom { border-bottom: 1px dashed #000; }
-            .total { font-weight: bold; font-size: 16px; }
-          </style>
-        </head>
-        <body>
-          <h1>${settings.restaurantName}</h1>
-          <div class="subtitle">
-            ${settings.address}<br />
-            Ph: ${settings.phone}<br />
-            ${settings.gstEnabled ? 'GSTIN: ' + settings.gstNumber : ''}
-          </div>
-          
-          <div class="info">
-            Bill No: ${order.billNo}<br />
-            Date: ${new Date(order.date).toLocaleString('en-IN')}<br />
-            Type: ${order.orderType} ${order.acMode ? '(' + order.acMode + ')' : ''}<br />
-            Payment: ${order.paymentMode}
-          </div>
-
-          <table>
-            <tr class="border-top border-bottom">
-              <th>Item</th>
-              <th class="center">Qty</th>
-              <th class="right">Amount</th>
-            </tr>
-            ${order.items.map(i => `
-              <tr>
-                <td>${i.name}</td>
-                <td class="center">${i.qty}</td>
-                <td class="right">${inr(i.price * i.qty)}</td>
-              </tr>
-            `).join('')}
-          </table>
-
-          <table style="margin-bottom: 0;">
-            <tr>
-              <td>Subtotal</td>
-              <td class="right">${inr(order.subtotal)}</td>
-            </tr>
-            ${order.gstAmount > 0 ? `
-              <tr>
-                <td>GST (${order.gstPct}%)</td>
-                <td class="right">${inr(order.gstAmount)}</td>
-              </tr>
-            ` : ''}
-            ${order.acCharge > 0 ? `
-              <tr>
-                <td>AC Charges</td>
-                <td class="right">${inr(order.acCharge)}</td>
-              </tr>
-            ` : ''}
-            <tr class="border-top border-bottom">
-              <td class="total" style="padding-top: 8px; padding-bottom: 8px;">TOTAL</td>
-              <td class="right total" style="padding-top: 8px; padding-bottom: 8px;">${inr(order.total)}</td>
-            </tr>
-          </table>
-
-          <div class="subtitle" style="margin-top: 30px;">
-            ${settings.footer}
-          </div>
-        </body>
-      </html>
-    `;
-
+  React.useEffect(() => {
+    if (autoPrint) {
+      printThermal();
+    }
+  }, [autoPrint]);
+  const printThermal = async () => {
+    if (isPrinting) return;
     try {
-      const { uri } = await Print.printToFileAsync({ html });
-      if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        await Sharing.shareAsync(uri);
+      setIsPrinting(true);
+      setErrorMsg('');
+      if (!connectedPrinterAddress) {
+        setErrorMsg("No printer connected! Please connect a printer from the main screen.");
+        return;
       }
-    } catch (e) {
-      console.error(e);
+      await printReceipt(order, settings);
+    } catch (e: any) {
+      setErrorMsg(e.message || "Failed to print receipt");
+    } finally {
+      setIsPrinting(false);
     }
   };
+
+
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -157,13 +93,16 @@ export function BillDialog({ order, onClose }: { order: Order; onClose: () => vo
             </Text>
             <Text style={styles.footerMetaText}>Paid via {order.paymentMode}</Text>
           </View>
-
-          <Text style={styles.footerMessage}>{settings.footer}</Text>
+          {errorMsg ? (
+            <View style={{ marginBottom: 16 }}>
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.printBtn} onPress={print}>
-              <Printer size={16} color="#09090b" />
-              <Text style={styles.printBtnText}>Print Bill</Text>
+            <TouchableOpacity style={styles.printBtn} onPress={printThermal} disabled={isPrinting}>
+              {isPrinting ? <ActivityIndicator size="small" color="#09090b" /> : <Printer size={16} color="#09090b" />}
+              <Text style={styles.printBtnText}>Receipt</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
               <Text style={styles.doneBtnText}>Done</Text>
@@ -199,7 +138,7 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     width: '100%',
     maxWidth: 448,
-    maxHeight: '90%',
+    maxHeight: '95%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 25 },
     shadowOpacity: 0.15,
@@ -266,7 +205,7 @@ const styles = StyleSheet.create({
     color: '#52525b',
   },
   itemsList: {
-    maxHeight: 200,
+    maxHeight: 150,
   },
   itemRow: {
     flexDirection: 'row',
@@ -342,43 +281,87 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#71717a',
   },
-  footerMessage: {
-    textAlign: 'center',
+  printerSection: {
+    marginTop: 12,
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#f4f4f5',
+    borderRadius: 12,
+  },
+  printerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  printerTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#52525b',
+  },
+  scanText: {
+    fontSize: 12,
+    color: '#0fa05c',
+    fontWeight: '500',
+  },
+  errorText: {
     fontSize: 11,
-    fontStyle: 'italic',
-    color: '#71717a',
-    marginTop: 16,
-    marginBottom: 20,
+    color: '#ef4444',
+    marginBottom: 8,
+  },
+  deviceList: {
+    flexDirection: 'row',
+  },
+  deviceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#e4e4e7',
+    gap: 6,
+  },
+  deviceCardActive: {
+    borderColor: '#0fa05c',
+    backgroundColor: '#f0fdf4',
+  },
+  deviceName: {
+    fontSize: 12,
+    color: '#18181b',
+    maxWidth: 100,
   },
   actions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   printBtn: {
     flex: 1,
-    height: 48,
-    borderRadius: 16,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: '#f4f4f5',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
   },
   printBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#09090b',
   },
   doneBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 16,
+    flex: 1.5,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: '#09090b',
     alignItems: 'center',
     justifyContent: 'center',
   },
   doneBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#fff',
   },

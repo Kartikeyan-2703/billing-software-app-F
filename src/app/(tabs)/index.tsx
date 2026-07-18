@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,20 +8,25 @@ import {
   StyleSheet,
   SectionList,
   FlatList,
-  SafeAreaView,
   Platform,
 } from 'react-native';
-import { Search, Plus, Minus, ArrowRight } from 'lucide-react-native';
+import { Search, Plus, Minus, ArrowRight, Printer } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePos, inr, type MenuItem } from '../../lib/pos-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PrinterModal } from '../../components/PrinterModal';
 
 export default function BillingScreen() {
-  const { menu, cart, setQty, settings } = usePos();
+  const { menu, cart, setQty, settings, initPrinter, connectedPrinterAddress } = usePos();
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    initPrinter();
+  }, []);
 
   const categories = useMemo(() => {
     return ['All', ...Array.from(new Set(menu.map((m) => m.category)))];
@@ -72,10 +78,16 @@ export default function BillingScreen() {
           <Text style={styles.headerTitle}>{settings.restaurantName}</Text>
           <Text style={styles.headerSubtitle}>Point of Sale · Billing</Text>
         </View>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {settings.restaurantName.slice(0, 2).toUpperCase()}
-          </Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={() => setShowPrinterModal(true)} style={styles.printerIconBtn}>
+            <Printer size={20} color={connectedPrinterAddress ? "#0fa05c" : "#71717a"} />
+            <View style={[styles.statusDotSmall, { backgroundColor: connectedPrinterAddress ? "#0fa05c" : "#ef4444" }]} />
+          </TouchableOpacity>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {settings.restaurantName.slice(0, 2).toUpperCase()}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -182,6 +194,10 @@ export default function BillingScreen() {
           </View>
         </View>
       )}
+
+      {showPrinterModal && (
+        <PrinterModal onClose={() => setShowPrinterModal(false)} />
+      )}
     </SafeAreaView>
   );
 }
@@ -239,6 +255,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#71717a', // zinc-500
     marginTop: 2,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  printerIconBtn: {
+    padding: 8,
+    backgroundColor: '#f4f4f5',
+    borderRadius: 20,
+    position: 'relative',
+  },
+  statusDotSmall: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#ffffff',
   },
   avatar: {
     width: 36,

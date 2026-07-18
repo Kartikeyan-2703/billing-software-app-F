@@ -43,7 +43,8 @@ function RootLayoutNav() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#ffffff' } }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="password" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="admin" />
         </Stack>
         <StatusBar style="auto" />
       </View>

@@ -1,7 +1,9 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Dimensions } from 'react-native';
 import { BarChart, PieChart } from 'react-native-chart-kit';
 import { usePos, inr } from '../../lib/pos-store';
+import { PasswordGate } from '../../components/PasswordGate';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -30,7 +32,8 @@ export default function TrendsScreen() {
         itemCount[k].qty += l.qty;
         itemCount[k].revenue += l.qty * l.price;
       }
-      payment[o.paymentMode] = (payment[o.paymentMode] || 0) + 1;
+      const pMode = o.paymentMode?.toUpperCase() === 'UPI' ? 'UPI' : 'Cash';
+      payment[pMode] = (payment[pMode] || 0) + 1;
       orderType[o.orderType] = (orderType[o.orderType] || 0) + 1;
     }
 
@@ -118,7 +121,8 @@ export default function TrendsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <PasswordGate title="Trends Locked" gateType="trends">
+        <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Historical Trends</Text>
           <Text style={styles.headerSubtitle}>Sales & performance</Text>
@@ -208,6 +212,7 @@ export default function TrendsScreen() {
         </Panel>
       </ScrollView>
       </View>
+      </PasswordGate>
     </SafeAreaView>
   );
 }

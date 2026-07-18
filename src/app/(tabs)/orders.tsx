@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, SafeAreaView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Platform } from 'react-native';
 import { Search, Receipt } from 'lucide-react-native';
 import { usePos, inr, type Order } from '../../lib/pos-store';
 import { BillDialog } from '../../components/BillDialog';

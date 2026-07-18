@@ -3,19 +3,32 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingVi
 import { Lock } from 'lucide-react-native';
 import { apiFetch } from '../lib/api';
 
+import { useFocusEffect } from 'expo-router';
+
 export function PasswordGate({
   title,
   gateType,
   children,
 }: {
   title: string;
-  gateType: "menu" | "settings";
+  gateType: "menu" | "settings" | "trends";
   children: ReactNode;
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [value, setValue] = useState('');
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // When screen loses focus, reset state to locked
+      return () => {
+        setUnlocked(false);
+        setValue('');
+        setError(false);
+      };
+    }, [])
+  );
 
   if (unlocked) return <>{children}</>;
 
@@ -53,7 +66,6 @@ export function PasswordGate({
           <View style={styles.form}>
             <TextInput
               autoFocus
-              secureTextEntry
               keyboardType="numeric"
               maxLength={3}
               value={value}

@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { type MenuItem } from "./menu-data";
-import { apiFetch, getAuthToken } from "./api";
+export { type MenuItem };
+import { apiFetch, getAuthToken, clearAuthToken } from "./api";
+import * as SecureStore from 'expo-secure-store';
+import { connectPrinter } from './printer-utils';
+import { router } from 'expo-router';
 
 export type OrderType = "Dine-In" | "Take Away";
 export type PaymentMode = "Cash" | "UPI";
@@ -61,6 +65,14 @@ type PosStore = {
   settings: Settings;
   isReady: boolean;
   
+  connectedPrinterAddress: string | null;
+  connectedPrinterName: string | null;
+  isConnectingPrinter: boolean;
+  
+  initPrinter: () => Promise<void>;
+  connectToPrinter: (address: string, name: string | null) => Promise<void>;
+  disconnectPrinter: () => Promise<void>;
+  
   loadData: () => Promise<void>;
   addMenu: (m: MenuItem) => Promise<string | null>;
   updateMenu: (originalCode: string, m: MenuItem) => Promise<string | null>;
@@ -69,7 +81,7 @@ type PosStore = {
   clearCart: () => void;
   submitOrder: (paymentMode: string, diningType: string, isAC: boolean, items: {code: string, quantity: number}[]) => Promise<Order>;
   updateSettings: (s: Partial<Settings>) => Promise<string | null>;
-  updatePins: (menuPin: string, settingsPin: string) => Promise<string | null>;
+  updatePins: (menuPin: string, settingsPin: string, trendsPin: string) => Promise<string | null>;
 };
 
 export const usePos = create<PosStore>((set, get) => ({
@@ -78,6 +90,44 @@ export const usePos = create<PosStore>((set, get) => ({
   orders: [],
   settings: DEFAULT_SETTINGS,
   isReady: false,
+  
+  connectedPrinterAddress: null,
+  connectedPrinterName: null,
+  isConnectingPrinter: false,
+
+  initPrinter: async () => {
+    try {
+      const savedAddress = await SecureStore.getItemAsync('printer_address');
+      const savedName = await SecureStore.getItemAsync('printer_name');
+      if (savedAddress) {
+        set({ isConnectingPrinter: true });
+        await connectPrinter(savedAddress);
+        set({ connectedPrinterAddress: savedAddress, connectedPrinterName: savedName });
+      }
+    } catch (e) {
+      console.log("Failed to auto-connect printer", e);
+    } finally {
+      set({ isConnectingPrinter: false });
+    }
+  },
+
+  connectToPrinter: async (address, name) => {
+    set({ isConnectingPrinter: true });
+    try {
+      await connectPrinter(address);
+      await SecureStore.setItemAsync('printer_address', address);
+      if (name) await SecureStore.setItemAsync('printer_name', name);
+      set({ connectedPrinterAddress: address, connectedPrinterName: name });
+    } finally {
+      set({ isConnectingPrinter: false });
+    }
+  },
+
+  disconnectPrinter: async () => {
+    await SecureStore.deleteItemAsync('printer_address');
+    await SecureStore.deleteItemAsync('printer_name');
+    set({ connectedPrinterAddress: null, connectedPrinterName: null });
+  },
 
   loadData: async () => {
     const token = await getAuthToken();
@@ -85,6 +135,24 @@ export const usePos = create<PosStore>((set, get) => ({
       set({ isReady: true });
       return;
     }
+
+    // Clear previous user's data before fetching new data
+    set({
+      menu: [],
+      orders: [],
+      cart: {},
+      settings: {
+        restaurantName: "My Restaurant",
+        address: "",
+        phone: "",
+        gstNumber: "",
+        footer: "Thank you! Visit again.",
+        gstEnabled: false,
+        gstPct: 0,
+        acEnabled: false,
+        acCharge: 0,
+      },
+    });
 
     try {
       const [menuData, settingsData, ordersData] = await Promise.allSettled([
@@ -98,6 +166,16 @@ export const usePos = create<PosStore>((set, get) => ({
         settings: settingsData.status === "fulfilled" && settingsData.value ? settingsData.value : state.settings,
         orders: ordersData.status === "fulfilled" ? ordersData.value : state.orders,
       }));
+      
+      // If any request failed due to invalid token, clear it so user is logged out
+      if (
+        (menuData.status === "rejected" && menuData.reason?.message?.includes("Unauthorized")) ||
+        (settingsData.status === "rejected" && settingsData.reason?.message?.includes("Unauthorized")) ||
+        (ordersData.status === "rejected" && ordersData.reason?.message?.includes("Unauthorized"))
+      ) {
+        await clearAuthToken();
+        router.replace('/login');
+      }
     } catch (err) {
       console.error("Failed to fetch POS data", err);
     } finally {
@@ -188,11 +266,11 @@ export const usePos = create<PosStore>((set, get) => ({
     }
   },
 
-  updatePins: async (menuPin, settingsPin) => {
+  updatePins: async (menuPin, settingsPin, trendsPin) => {
     try {
       await apiFetch("/auth/update-pins", {
         method: "POST",
-        body: JSON.stringify({ menuPassword: menuPin, settingsPassword: settingsPin })
+        body: JSON.stringify({ menuPassword: menuPin, settingsPassword: settingsPin, trendsPassword: trendsPin }),
       });
       return null;
     } catch (err: any) {
@@ -202,5 +280,5 @@ export const usePos = create<PosStore>((set, get) => ({
 }));
 
 export function inr(n: number) {
-  return `₹${n.toLocaleString("en-IN")}`;
+  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

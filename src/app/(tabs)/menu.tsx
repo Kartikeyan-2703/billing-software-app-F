@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, SafeAreaView, Platform, Modal, Alert, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Platform, Modal, Alert, KeyboardAvoidingView } from 'react-native';
 import { Search, Plus, Pencil, Trash2, X, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import { usePos, inr, type MenuItem } from '../../lib/pos-store';
 import { PasswordGate } from '../../components/PasswordGate';

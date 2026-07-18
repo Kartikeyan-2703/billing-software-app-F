@@ -1,19 +1,19 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from 'expo-secure-store';
 
 // Ensure this is configured in .env for dev or CI/CD for production
 export const API_URL = process.env.EXPO_PUBLIC_API_URL as string;
 const AUTH_TOKEN_KEY = "auth_token";
 
 export async function getAuthToken(): Promise<string | null> {
-  return await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+  return await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
 }
 
 export async function setAuthToken(token: string): Promise<void> {
-  await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
+  await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
 }
 
 export async function clearAuthToken(): Promise<void> {
-  await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+  await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
 }
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
