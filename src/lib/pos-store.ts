@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { type MenuItem } from "./menu-data";
 export { type MenuItem };
 import { apiFetch, getAuthToken, clearAuthToken } from "./api";
@@ -89,9 +91,13 @@ type PosStore = {
   updatePins: (menuPin: string, settingsPin: string, trendsPin: string) => Promise<string | null>;
   fetchNextOrdersPage: () => Promise<void>;
   searchOrders: (query: string) => Promise<void>;
+  offlineSyncQueue: Order[];
+  syncOfflineOrders: () => Promise<void>;
 };
 
-export const usePos = create<PosStore>((set, get) => ({
+export const usePos = create<PosStore>()(
+  persist(
+    (set, get) => ({
   menu: [],
   cart: {},
   orders: [],
@@ -102,6 +108,7 @@ export const usePos = create<PosStore>((set, get) => ({
   isFetchingOrders: false,
   settings: DEFAULT_SETTINGS,
   isReady: false,
+  offlineSyncQueue: [],
   
   connectedPrinterAddress: null,
   connectedPrinterName: null,
@@ -299,13 +306,60 @@ export const usePos = create<PosStore>((set, get) => ({
   clearCart: () => set({ cart: {} }),
 
   submitOrder: async (paymentMode, diningType, isAC, items) => {
-    const newOrder = await apiFetch("/orders", {
-      method: "POST",
-      body: JSON.stringify({ paymentMode, diningType, isAC, items })
-    });
+    const state = get();
+    const settings = state.settings;
+    const menu = state.menu;
+    
+    let subtotal = 0;
+    const orderItems = [];
+    for (const item of items) {
+      const menuItem = menu.find(m => m.code === item.code);
+      if (!menuItem) continue;
+      subtotal += menuItem.price * item.quantity;
+      orderItems.push({
+        id: Math.random().toString(36).substring(2, 9),
+        code: menuItem.code,
+        name: menuItem.name,
+        price: menuItem.price,
+        qty: item.quantity
+      });
+    }
+
+    let acChargeAmount = 0;
+    if (diningType === "Dine-In" && isAC && settings.acEnabled) {
+      acChargeAmount = settings.acCharge;
+    }
+
+    let gstAmount = 0;
+    if (settings.gstEnabled && settings.gstPct > 0) {
+      gstAmount = ((subtotal + acChargeAmount) * settings.gstPct) / 100;
+    }
+
+    const total = Math.round(subtotal + acChargeAmount + gstAmount);
+    
+    const newOrder: Order = {
+      id: Math.random().toString(36).substring(2, 15),
+      billNo: `OFF-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString(),
+      subtotal,
+      gstPct: settings.gstEnabled ? settings.gstPct : 0,
+      gstAmount,
+      acCharge: acChargeAmount,
+      total,
+      paymentMode: paymentMode as PaymentMode,
+      orderType: diningType as OrderType,
+      acMode: (isAC ? "AC" : "Non-AC") as AcMode,
+      items: orderItems
+    };
+
     set((state) => ({
-      orders: [newOrder, ...state.orders]
+      orders: [newOrder, ...state.orders],
+      offlineSyncQueue: [...state.offlineSyncQueue, newOrder]
     }));
+
+    // Trigger background sync
+    get().syncOfflineOrders();
+
     return newOrder;
   },
 
@@ -335,7 +389,35 @@ export const usePos = create<PosStore>((set, get) => ({
       return err.message || "Failed to update PINs";
     }
   },
-}));
+
+  syncOfflineOrders: async () => {
+    const { offlineSyncQueue } = get();
+    if (offlineSyncQueue.length === 0) return;
+
+    try {
+      await apiFetch("/orders/bulk-sync", {
+        method: "POST",
+        body: JSON.stringify({ orders: offlineSyncQueue })
+      });
+      set({ offlineSyncQueue: [] });
+    } catch (error) {
+      console.log("Failed to sync offline orders, keeping in queue");
+    }
+  }
+    }),
+    {
+      name: "pos-storage",
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        menu: state.menu,
+        settings: state.settings,
+        orders: state.orders,
+        trends: state.trends,
+        offlineSyncQueue: state.offlineSyncQueue,
+      }),
+    }
+  )
+);
 
 export function inr(n: number) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

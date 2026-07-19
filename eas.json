@@ -1,0 +1,30 @@
+{
+  "cli": {
+    "version": ">= 8.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://smart-bill-backend-558774438284.asia-south1.run.app/api",
+        "EXPO_PUBLIC_ADMIN_EMAILS": "prasannasaravanan2267@gmail.com,kartikeyansuresh2703@gmail.com",
+        "EXPO_PUBLIC_ADMIN_PASSWORD": "Muruga123!@#"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

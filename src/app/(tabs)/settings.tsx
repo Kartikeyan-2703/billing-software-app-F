@@ -242,6 +242,9 @@ function SettingsEditor({ setStatusMsg }: { setStatusMsg: any }) {
         <TouchableOpacity 
           style={styles.signOutBtn} 
           onPress={async () => {
+            try {
+              await apiFetch("/auth/logout", { method: "POST" });
+            } catch (e) {} // ignore errors on logout
             await clearAuthToken();
             router.replace('/login');
           }}>

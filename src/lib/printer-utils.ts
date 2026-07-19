@@ -1,5 +1,6 @@
 import { Platform, PermissionsAndroid } from 'react-native';
-import { BluetoothManager, BluetoothEscposPrinter } from '@mateusdegobi/react-native-bluetooth-escpos-printer';
+import { BluetoothManager, BluetoothEscposPrinter as _Printer } from '@mateusdegobi/react-native-bluetooth-escpos-printer';
+const BluetoothEscposPrinter: any = _Printer;
 import { type Order, type Settings } from './pos-store';
 
 export async function requestBluetoothPermissions() {
@@ -124,7 +125,7 @@ export const printReceipt = async (order: Order, settings: Settings) => {
     await BluetoothEscposPrinter.printText(`--------------------------------\n\r`, {});
 
     for (const item of order.items) {
-      const amount = (item.price * item.qty).toString();
+      const amount = (item.price * item.qty).toFixed(2);
       const qtyStr = item.qty.toString();
 
       if (item.name.length <= 16) {
@@ -176,7 +177,7 @@ export const printReceipt = async (order: Order, settings: Settings) => {
     await BluetoothEscposPrinter.printColumn(
       [16, 16],
       [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.RIGHT],
-      ['Subtotal', order.subtotal.toString()],
+      ['Subtotal', order.subtotal.toFixed(2)],
       {}
     );
 
@@ -184,7 +185,7 @@ export const printReceipt = async (order: Order, settings: Settings) => {
       await BluetoothEscposPrinter.printColumn(
         [16, 16],
         [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.RIGHT],
-        [`GST (${order.gstPct}%)`, order.gstAmount.toString()],
+        [`GST (${order.gstPct}%)`, order.gstAmount.toFixed(2)],
         {}
       );
     }
@@ -193,7 +194,7 @@ export const printReceipt = async (order: Order, settings: Settings) => {
       await BluetoothEscposPrinter.printColumn(
         [16, 16],
         [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.RIGHT],
-        ['AC Charges', order.acCharge.toString()],
+        ['AC Charges', order.acCharge.toFixed(2)],
         {}
       );
     }
@@ -202,7 +203,7 @@ export const printReceipt = async (order: Order, settings: Settings) => {
     await BluetoothEscposPrinter.printColumn(
       [16, 16],
       [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.RIGHT],
-      ['TOTAL', order.total.toString()],
+      ['TOTAL', order.total.toFixed(2)],
       {}
     );
     await BluetoothEscposPrinter.printText(`--------------------------------\n\r`, {});

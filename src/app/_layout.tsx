@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import { View, StyleSheet, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -6,6 +7,7 @@ import { useEffect } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import { usePos } from '../lib/pos-store';
 import { getAuthToken } from '../lib/api';
+import NetInfo from '@react-native-community/netinfo';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -16,6 +18,15 @@ function RootLayoutNav() {
 
   useEffect(() => {
     loadData();
+
+    // Auto sync when online
+    const unsubscribe = NetInfo.addEventListener(state => {
+      if (state.isConnected) {
+        usePos.getState().syncOfflineOrders();
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -48,6 +59,7 @@ function RootLayoutNav() {
         </Stack>
         <StatusBar style="auto" />
       </View>
+      <Toast />
     </View>
   );
 }

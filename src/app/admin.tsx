@@ -106,8 +106,14 @@ export default function AdminScreen() {
           <TouchableOpacity 
             style={styles.blackButton} 
             onPress={() => {
-              if (adminEmail && adminPassword) {
+              const allowedStr = process.env.EXPO_PUBLIC_ADMIN_EMAILS || "";
+              const ALLOWED = allowedStr.split(",").map(s => s.trim());
+              const envPass = process.env.EXPO_PUBLIC_ADMIN_PASSWORD;
+
+              if (ALLOWED.includes(adminEmail) && adminPassword === envPass) {
                 setIsAdminAuth(true);
+              } else {
+                Alert.alert("Error", "Unauthorized. Invalid Admin Credentials");
               }
             }}
           >

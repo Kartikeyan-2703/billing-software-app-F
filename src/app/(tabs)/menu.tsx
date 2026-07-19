@@ -1,6 +1,6 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Platform, Modal, Alert, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Platform, Modal, Alert, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { Search, Plus, Pencil, Trash2, X, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import { usePos, inr, type MenuItem } from '../../lib/pos-store';
 import { PasswordGate } from '../../components/PasswordGate';
@@ -130,6 +130,7 @@ function MenuEditor() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}>
           <ItemForm
+            menu={menu}
             initial={editing || undefined}
             existingCodes={menu.map(m => m.code)}
             onClose={() => {
@@ -168,20 +169,27 @@ function MenuEditor() {
 }
 
 function ItemForm({
+  menu,
   initial,
   onClose,
   onSubmit,
   existingCodes,
 }: {
+  menu: MenuItem[];
   initial?: MenuItem;
   onClose: () => void;
   onSubmit: (item: MenuItem) => Promise<boolean> | boolean;
   existingCodes: string[];
 }) {
+  const categories = useMemo(() => {
+    return Array.from(new Set([...CATEGORIES, ...menu.map(m => m.category)]));
+  }, [menu]);
+
   const [code, setCode] = useState(initial?.code ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [price, setPrice] = useState(initial?.price.toString() ?? '');
-  const [category, setCategory] = useState(initial?.category ?? CATEGORIES[0]);
+  const [category, setCategory] = useState(initial?.category ?? categories[0]);
+  const [customCategory, setCustomCategory] = useState('');
   const [showCat, setShowCat] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -241,12 +249,29 @@ function ItemForm({
 
         {showCat && (
           <View style={styles.dropdownList}>
-            {CATEGORIES.map(c => (
-              <TouchableOpacity key={c} style={styles.dropdownItem} onPress={() => { setCategory(c); setShowCat(false); }}>
-                <Text style={{ fontSize: 15, color: category === c ? '#0fa05c' : '#09090b', fontWeight: category === c ? '600' : '400' }}>{c}</Text>
+            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+              {categories.map(c => (
+                <TouchableOpacity key={c} style={styles.dropdownItem} onPress={() => { setCategory(c); setShowCat(false); }}>
+                  <Text style={{ fontSize: 15, color: category === c ? '#0fa05c' : '#09090b', fontWeight: category === c ? '600' : '400' }}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.dropdownItem} onPress={() => { setCategory('Other...'); setShowCat(false); }}>
+                <Text style={{ fontSize: 15, color: category === 'Other...' ? '#0fa05c' : '#09090b', fontWeight: category === 'Other...' ? '600' : '400' }}>Other...</Text>
               </TouchableOpacity>
-            ))}
+            </ScrollView>
           </View>
+        )}
+
+        {category === 'Other...' && (
+          <Field label="New Category Name" style={{ marginTop: 10 }}>
+            <TextInput
+              style={styles.input}
+              value={customCategory}
+              onChangeText={setCustomCategory}
+              placeholder="e.g. Combos"
+              placeholderTextColor="#a1a1aa"
+            />
+          </Field>
         )}
         
         {!!errorMsg && (
@@ -272,7 +297,12 @@ function ItemForm({
             setErrorMsg(`Item code ${code} already exists.`);
             return;
           }
-          const ok = await onSubmit({ code, name: name.trim(), price: Number(price), category });
+          const finalCategory = category === 'Other...' ? customCategory.trim() : category;
+          if (!finalCategory) {
+            setErrorMsg('Please enter a category name');
+            return;
+          }
+          const ok = await onSubmit({ code, name: name.trim(), price: Number(price), category: finalCategory });
           if (ok) onClose();
         }}>
         <Text style={styles.submitBtnText}>{initial ? 'Save Changes' : 'Add Item'}</Text>
