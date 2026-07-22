@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView } from "react-native";
 import { StyleSheet, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { apiFetch, setAuthToken } from "../lib/api";
@@ -42,7 +42,10 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.card}>
         <View style={styles.iconContainer}>
           <Lock color="#18181b" size={32} />
@@ -67,6 +70,14 @@ export default function LoginScreen() {
             autoCapitalize="none"
             keyboardType="email-address"
           />
+          {email.length > 0 && !email.includes('@') && (
+            <TouchableOpacity 
+              style={styles.suggestionPill} 
+              onPress={() => setEmail(email + '@gmail.com')}
+            >
+              <Text style={styles.suggestionText}>+ @gmail.com</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.inputContainer}>
@@ -102,7 +113,7 @@ export default function LoginScreen() {
       <View style={styles.poweredBy}>
         <Text style={styles.poweredByText}>POWERED BY NEURALWEB LABS</Text>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -179,6 +190,21 @@ const styles = StyleSheet.create({
     color: "#18181b",
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {} as any),
   },
+  suggestionPill: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#f4f4f5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e4e4e7',
+  },
+  suggestionText: {
+    fontSize: 12,
+    color: '#52525b',
+    fontWeight: '500',
+  },
   passwordWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -239,8 +265,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   poweredBy: {
-    position: 'absolute',
-    bottom: 40,
+    marginTop: 40,
   },
   poweredByText: {
     fontSize: 10,

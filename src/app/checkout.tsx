@@ -49,13 +49,13 @@ export default function CheckoutScreen() {
   }
 
   async function generateBill() {
-    if (!payment) return;
     setLoading(true);
     try {
       const isAC = orderType === 'Dine-In' && settings.acEnabled ? acMode === 'AC' : false;
       const orderItems = lines.map((l) => ({ code: l.code, quantity: l.qty }));
       
-      const order = await submitOrder(payment, orderType, isAC, orderItems);
+      const finalPayment = payment || 'Cash';
+      const order = await submitOrder(finalPayment, orderType, isAC, orderItems);
       setBill(order);
       clearCart();
     } catch (err: any) {
@@ -154,12 +154,12 @@ export default function CheckoutScreen() {
 
       <View style={[styles.bottomBar, { bottom: 0 }]}>
         <TouchableOpacity
-          disabled={!payment || loading}
+          disabled={loading}
           onPress={generateBill}
-          style={[styles.generateBtn, (!payment || loading) && styles.generateBtnDisabled]}>
-          <Check size={20} color={payment && !loading ? '#fff' : '#a1a1aa'} />
-          <Text style={[styles.generateBtnText, (!payment || loading) && styles.generateBtnTextDisabled]}>
-            {loading ? 'Generating...' : payment ? `Generate Bill · ${inr(total)}` : 'Select payment mode'}
+          style={[styles.generateBtn, loading && styles.generateBtnDisabled]}>
+          <Check size={20} color={!loading ? '#fff' : '#a1a1aa'} />
+          <Text style={[styles.generateBtnText, loading && styles.generateBtnTextDisabled]}>
+            {loading ? 'Generating...' : `Generate Bill (${payment || 'Cash'}) · ${inr(total)}`}
           </Text>
         </TouchableOpacity>
       </View>

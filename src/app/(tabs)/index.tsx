@@ -103,28 +103,23 @@ export default function BillingScreen() {
           />
         </View>
         <View style={styles.categoriesContainer}>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={categories}
-            keyExtractor={(item, index) => String(item) + index}
-            renderItem={({ item: cat }) => (
-              <TouchableOpacity
-                onPress={() => setSelectedCategory(cat as string)}
+          {categories.map((cat, index) => (
+            <TouchableOpacity
+              key={String(cat) + index}
+              onPress={() => setSelectedCategory(cat as string)}
+              style={[
+                styles.categoryPill,
+                selectedCategory === cat && styles.categoryPillActive,
+              ]}>
+              <Text
                 style={[
-                  styles.categoryPill,
-                  selectedCategory === cat && styles.categoryPillActive,
+                  styles.categoryPillText,
+                  selectedCategory === cat && styles.categoryPillTextActive,
                 ]}>
-                <Text
-                  style={[
-                    styles.categoryPillText,
-                    selectedCategory === cat && styles.categoryPillTextActive,
-                  ]}>
-                  {cat as string}
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
+                {cat as string}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
@@ -317,13 +312,15 @@ const styles = StyleSheet.create({
   },
   categoriesContainer: {
     marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   categoryPill: {
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: '#f4f4f5',
-    marginRight: 8,
   },
   categoryPillActive: {
     backgroundColor: '#09090b',
